@@ -137,7 +137,7 @@
         let isReading = false;
         const synth = window.speechSynthesis;
 
-        // 1. 카메라 초기화
+        // 1. 카메라 초기화 (해상도 및 오토포커스 최적화)
         async function initCamera() {
             try {
                 if (currentStream) {
@@ -146,8 +146,9 @@
                 const constraints = {
                     video: { 
                         facingMode: "environment", // 후면 카메라 우선
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        width: { ideal: 1920 }, // 텍스트 인식을 위해 높은 해상도 요청
+                        height: { ideal: 1080 },
+                        advanced: [{ focusMode: "continuous" }] // 가능한 경우 자동 초점 유지
                     }
                 };
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -159,7 +160,6 @@
         }
 
         // 2. 음성 합성 (TTS) 설정 모바일 대응
-        // iOS 등에서 사용자 제스처 없이 음성이 안나오는 것을 방지하기 위한 트릭
         function unlockAudio() {
             const utterance = new SpeechSynthesisUtterance('');
             synth.speak(utterance);
@@ -167,12 +167,12 @@
 
         // 3. 텍스트 읽어주기 (TTS)
         function speakText(text, langCode) {
-            if (synth.speaking) synth.cancel(); // 기존 음성 취소
+            if (synth.speaking) synth.cancel();
 
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = langCode; // 'ko-KR' 또는 'en-US'
-            utterance.rate = 0.9; // 아이들이 듣기 좋게 약간 느리게
-            utterance.pitch = 1.1; // 약간 높은 톤 (친근하게)
+            utterance.lang = langCode;
+            utterance.rate = 0.9;
+            utterance.pitch = 1.1;
 
             utterance.onstart = () => {
                 isReading = true;
@@ -211,17 +211,22 @@
             }
         }
 
-        // 5. 메인 로직: 사진 촬영 -> OCR -> 번역(선택) -> TTS
+        // 5. 메인 로직: 사진 촬영 -> 이미지 전처리 -> OCR -> 번역(선택) -> TTS
         captureBtn.addEventListener('click', async () => {
-            // 오디오 잠금 해제 (모바일 대응)
             unlockAudio();
 
             // 비디오 프레임을 캔버스에 그리기
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
+            
+            // [개선] OCR 인식률 향상을 위한 이미지 전처리 필터 적용
+            // 흑백 처리, 대비(Contrast) 증가, 밝기(Brightness) 조절로 글자를 선명하게 만듦
+            ctx.filter = 'grayscale(100%) contrast(150%) brightness(120%)';
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = canvas.toDataURL('image/png');
+            
+            // 용량 최적화 및 텍스트 선명도 유지를 위해 고품질 JPEG 사용
+            const imageData = canvas.toDataURL('image/jpeg', 0.9);
 
             // UI 상태 변경
             document.querySelector('.relative').classList.add('is-scanning');
@@ -230,7 +235,8 @@
             progressBar.style.width = '0%';
 
             const mode = readMode.value;
-            const tesseractLang = (mode === 'kor') ? 'kor' : 'eng';
+            // [개선] 한글 모드일 때 영어 단어가 섞여 있어도 깨지지 않도록 'kor+eng' 사용
+            const tesseractLang = (mode === 'kor') ? 'kor+eng' : 'eng';
             
             try {
                 // Tesseract OCR 실행
@@ -259,7 +265,6 @@
 
                 // 결과 처리
                 if (mode === 'eng-to-kor') {
-                    // 번역 모드
                     loadingText.innerText = "우리말로 번역하고 있어요...";
                     progressBar.style.width = "100%";
                     const translatedText = await translateText(cleanedText);
@@ -271,11 +276,9 @@
                     speakText(translatedText, 'ko-KR');
 
                 } else if (mode === 'eng') {
-                    // 영어 읽기 모드
                     resultText.innerHTML = `<p class="text-xl font-bold text-gray-800 title-font leading-relaxed">${cleanedText}</p>`;
                     speakText(cleanedText, 'en-US');
                 } else {
-                    // 한국어 읽기 모드
                     resultText.innerHTML = `<p class="text-xl font-bold text-gray-800 title-font leading-relaxed">${cleanedText}</p>`;
                     speakText(cleanedText, 'ko-KR');
                 }
