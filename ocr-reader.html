@@ -1,1137 +1,309 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>책 읽어주는 돋보기</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Gaegu:wght@300;400;700&family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>책 읽어주는 돋보기</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tesseract.js for OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Gothic:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Nanum Gothic', sans-serif;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+            overscroll-behavior-y: none; /* 모바일에서 당겨서 새로고침 방지 */
+        }
+        
+        .title-font {
+            font-family: 'Jua', sans-serif;
+        }
 
-  :root {
-    --sky: #e8f4fd;
-    --sky-mid: #c3e0f7;
-    --blue: #3b9de8;
-    --blue-dark: #1a6fbf;
-    --yellow: #ffd93d;
-    --yellow-dark: #e6b800;
-    --green: #6bcb77;
-    --green-dark: #3e9c47;
-    --coral: #ff6b6b;
-    --white: #ffffff;
-    --ink: #1a1a2e;
-    --ink-light: #4a4a6a;
-    --paper: #fffdf7;
-    --shadow: rgba(59, 157, 232, 0.18);
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'Noto Sans KR', sans-serif;
-    background: var(--sky);
-    min-height: 100vh;
-    overflow-x: hidden;
-    position: relative;
-  }
-
-  /* 배경 구름 패턴 */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background:
-      radial-gradient(ellipse 120px 60px at 10% 15%, rgba(255,255,255,0.7) 0%, transparent 70%),
-      radial-gradient(ellipse 80px 40px at 8% 12%, rgba(255,255,255,0.5) 0%, transparent 70%),
-      radial-gradient(ellipse 100px 50px at 75% 8%, rgba(255,255,255,0.6) 0%, transparent 70%),
-      radial-gradient(ellipse 140px 55px at 85% 25%, rgba(255,255,255,0.4) 0%, transparent 70%),
-      linear-gradient(180deg, #c9e8f9 0%, #e8f4fd 40%, #fffdf7 100%);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .app-wrap {
-    position: relative;
-    z-index: 1;
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 0 0 40px;
-  }
-
-  /* ─── 헤더 ─── */
-  .header {
-    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
-    padding: 22px 20px 28px;
-    text-align: center;
-    border-radius: 0 0 30px 30px;
-    box-shadow: 0 6px 24px var(--shadow);
-    position: relative;
-    overflow: hidden;
-  }
-  .header::after {
-    content: '';
-    position: absolute;
-    bottom: -20px; left: 50%;
-    transform: translateX(-50%);
-    width: 60px; height: 60px;
-    background: var(--sky);
-    border-radius: 50%;
-  }
-  .header-icon {
-    font-size: 3rem;
-    display: block;
-    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.2));
-    animation: float 3s ease-in-out infinite;
-  }
-  @keyframes float {
-    0%,100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
-  }
-  .header h1 {
-    font-family: 'Gaegu', cursive;
-    font-size: 1.7rem;
-    font-weight: 700;
-    color: var(--white);
-    margin-top: 6px;
-    letter-spacing: 1px;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  }
-  .header p {
-    font-size: 0.78rem;
-    color: rgba(255,255,255,0.85);
-    margin-top: 4px;
-    font-weight: 300;
-  }
-
-  /* ─── 탭 ─── */
-  .tabs {
-    display: flex;
-    margin: 28px 16px 0;
-    background: var(--white);
-    border-radius: 18px;
-    padding: 5px;
-    box-shadow: 0 3px 12px var(--shadow);
-    gap: 4px;
-  }
-  .tab-btn {
-    flex: 1;
-    border: none;
-    border-radius: 13px;
-    padding: 10px 6px;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-size: 0.82rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.25s ease;
-    color: var(--ink-light);
-    background: transparent;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-  }
-  .tab-btn .tab-icon { font-size: 1.3rem; }
-  .tab-btn.active {
-    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
-    color: var(--white);
-    box-shadow: 0 3px 10px var(--shadow);
-  }
-
-  /* ─── 섹션 공통 ─── */
-  .section {
-    display: none;
-    margin: 18px 16px 0;
-    animation: fadeIn 0.3s ease;
-  }
-  .section.active { display: block; }
-  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-
-  /* ─── 카드 ─── */
-  .card {
-    background: var(--white);
-    border-radius: 20px;
-    padding: 18px;
-    box-shadow: 0 4px 16px var(--shadow);
-    margin-bottom: 14px;
-  }
-  .card-title {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--blue);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 12px;
-    display: flex; align-items: center; gap: 6px;
-  }
-
-  /* ─── 카메라 뷰 ─── */
-  .camera-container {
-    position: relative;
-    border-radius: 16px;
-    overflow: hidden;
-    background: #0a0a1a;
-    aspect-ratio: 4/3;
-    display: flex; align-items: center; justify-content: center;
-  }
-  #video {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: none;
-  }
-  .camera-placeholder {
-    display: flex; flex-direction: column; align-items: center; gap: 10px;
-    color: rgba(255,255,255,0.5);
-  }
-  .camera-placeholder span { font-size: 3rem; }
-  .camera-placeholder p { font-size: 0.8rem; }
-
-  /* 스캔 라인 애니메이션 */
-  .scan-line {
-    position: absolute;
-    left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, var(--yellow), var(--yellow), transparent);
-    border-radius: 2px;
-    opacity: 0;
-    pointer-events: none;
-    box-shadow: 0 0 12px var(--yellow);
-  }
-  .scanning .scan-line {
-    opacity: 1;
-    animation: scanAnim 1.5s ease-in-out infinite;
-  }
-  @keyframes scanAnim {
-    0% { top: 10%; }
-    100% { top: 90%; }
-  }
-
-  /* 코너 마커 */
-  .corner-markers {
-    position: absolute; inset: 12px;
-    pointer-events: none;
-  }
-  .corner-markers::before, .corner-markers::after {
-    content: '';
-    position: absolute;
-    width: 24px; height: 24px;
-    border-color: var(--yellow);
-    border-style: solid;
-    opacity: 0.8;
-  }
-  .corner-markers::before { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
-  .corner-markers::after  { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
-  .corner-bl, .corner-br {
-    position: absolute;
-    width: 24px; height: 24px;
-    border-color: var(--yellow);
-    border-style: solid;
-    opacity: 0.8;
-  }
-  .corner-bl { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
-  .corner-br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
-
-  #canvas { display: none; }
-
-  /* ─── 버튼들 ─── */
-  .btn-row {
-    display: flex;
-    gap: 10px;
-    margin-top: 14px;
-  }
-  .btn {
-    flex: 1;
-    border: none;
-    border-radius: 14px;
-    padding: 13px 10px;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-size: 0.88rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-  }
-  .btn:active { transform: scale(0.96); }
-  .btn-primary {
-    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
-    color: var(--white);
-    box-shadow: 0 4px 14px var(--shadow);
-  }
-  .btn-yellow {
-    background: linear-gradient(135deg, var(--yellow) 0%, var(--yellow-dark) 100%);
-    color: var(--ink);
-    box-shadow: 0 4px 14px rgba(255,217,61,0.3);
-  }
-  .btn-green {
-    background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
-    color: var(--white);
-    box-shadow: 0 4px 14px rgba(107,203,119,0.3);
-  }
-  .btn-coral {
-    background: linear-gradient(135deg, var(--coral) 0%, #e05555 100%);
-    color: var(--white);
-    box-shadow: 0 4px 14px rgba(255,107,107,0.3);
-  }
-  .btn-outline {
-    background: var(--white);
-    border: 2px solid var(--blue);
-    color: var(--blue);
-  }
-  .btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-    transform: none;
-  }
-  .btn-icon { font-size: 1.1rem; }
-
-  /* 업로드 영역 */
-  .upload-zone {
-    border: 2.5px dashed var(--sky-mid);
-    border-radius: 16px;
-    padding: 28px 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: var(--sky);
-  }
-  .upload-zone:hover { border-color: var(--blue); background: #ddeef9; }
-  .upload-zone .upload-icon { font-size: 2.5rem; }
-  .upload-zone p { font-size: 0.85rem; color: var(--ink-light); margin-top: 8px; }
-  .upload-zone p strong { color: var(--blue); }
-  #fileInput { display: none; }
-
-  /* 언어 선택 */
-  .lang-select-row {
-    display: flex; gap: 8px; align-items: center;
-  }
-  .lang-chip {
-    flex: 1;
-    border: 2px solid transparent;
-    border-radius: 12px;
-    padding: 9px 6px;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    text-align: center;
-    background: var(--sky);
-    color: var(--ink-light);
-    transition: all 0.2s;
-  }
-  .lang-chip.active {
-    background: var(--blue);
-    color: var(--white);
-    border-color: var(--blue-dark);
-    box-shadow: 0 2px 8px var(--shadow);
-  }
-
-  /* TTS 설정 */
-  .tts-row {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  }
-  .tts-label { font-size: 0.8rem; color: var(--ink-light); white-space: nowrap; }
-  .range-wrap { flex: 1; min-width: 100px; }
-  input[type=range] {
-    width: 100%;
-    accent-color: var(--blue);
-    height: 6px;
-    cursor: pointer;
-  }
-  .range-val {
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: var(--blue);
-    min-width: 28px;
-    text-align: right;
-  }
-  .voice-select {
-    width: 100%;
-    padding: 8px 12px;
-    border: 2px solid var(--sky-mid);
-    border-radius: 10px;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-size: 0.82rem;
-    background: var(--white);
-    color: var(--ink);
-    margin-top: 8px;
-    cursor: pointer;
-  }
-  .voice-select:focus { outline: none; border-color: var(--blue); }
-
-  /* ─── 결과 박스 ─── */
-  .result-box {
-    background: var(--paper);
-    border: 2px solid var(--sky-mid);
-    border-radius: 16px;
-    padding: 16px;
-    min-height: 80px;
-    font-size: 1rem;
-    line-height: 1.75;
-    color: var(--ink);
-    font-family: 'Noto Sans KR', sans-serif;
-    white-space: pre-wrap;
-    word-break: break-all;
-    position: relative;
-  }
-  .result-box.has-text {
-    border-color: var(--blue);
-    box-shadow: inset 0 0 0 1px rgba(59,157,232,0.15);
-  }
-  .result-placeholder {
-    color: var(--ink-light);
-    font-size: 0.85rem;
-    font-style: italic;
-    opacity: 0.6;
-  }
-  .result-box textarea {
-    width: 100%; border: none; outline: none;
-    font-family: 'Noto Sans KR', sans-serif;
-    font-size: 1rem; line-height: 1.75;
-    color: var(--ink); background: transparent;
-    resize: none; min-height: 80px;
-  }
-
-  /* 번역 박스 */
-  .translate-box {
-    background: linear-gradient(135deg, #f0fff4, #e8f8ec);
-    border: 2px solid rgba(107,203,119,0.4);
-    border-radius: 16px;
-    padding: 14px 16px;
-    font-size: 0.92rem;
-    line-height: 1.7;
-    color: var(--ink);
-    display: none;
-  }
-  .translate-box.show { display: block; }
-  .translate-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--green-dark);
-    letter-spacing: 1px;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-  }
-
-  /* ─── 상태 표시 ─── */
-  .status-bar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 0.82rem;
-    font-weight: 700;
-    margin-bottom: 12px;
-    transition: all 0.3s;
-  }
-  .status-bar.idle { background: var(--sky); color: var(--ink-light); display: none; }
-  .status-bar.loading { background: #fff9e0; color: #8a6800; display: flex; }
-  .status-bar.success { background: #eeffee; color: var(--green-dark); display: flex; }
-  .status-bar.error   { background: #fff0f0; color: #c0392b; display: flex; }
-
-  .spinner {
-    width: 16px; height: 16px;
-    border: 2px solid rgba(0,0,0,0.12);
-    border-top-color: currentColor;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* 재생 진행 바 */
-  .play-bar {
-    height: 4px;
-    background: var(--sky-mid);
-    border-radius: 2px;
-    margin-top: 10px;
-    overflow: hidden;
-    display: none;
-  }
-  .play-bar.active { display: block; }
-  .play-progress {
-    height: 100%;
-    background: linear-gradient(90deg, var(--blue), var(--green));
-    border-radius: 2px;
-    width: 0%;
-    transition: width 0.3s ease;
-    animation: playPulse 1.5s ease-in-out infinite;
-  }
-  @keyframes playPulse {
-    0%,100% { opacity: 1; }
-    50% { opacity: 0.6; }
-  }
-
-  /* ─── 미리보기 이미지 ─── */
-  .preview-img {
-    width: 100%;
-    border-radius: 12px;
-    display: none;
-    margin-top: 10px;
-    border: 2px solid var(--sky-mid);
-  }
-
-  /* ─── 히스토리 ─── */
-  .history-empty {
-    text-align: center;
-    padding: 32px 16px;
-    color: var(--ink-light);
-    opacity: 0.5;
-  }
-  .history-empty span { font-size: 2.5rem; display: block; margin-bottom: 8px; }
-  .history-item {
-    background: var(--white);
-    border-radius: 14px;
-    padding: 14px;
-    margin-bottom: 10px;
-    box-shadow: 0 2px 8px var(--shadow);
-    cursor: pointer;
-    transition: transform 0.2s;
-    border-left: 4px solid var(--blue);
-  }
-  .history-item:active { transform: scale(0.98); }
-  .history-item .hi-meta {
-    font-size: 0.72rem;
-    color: var(--ink-light);
-    margin-bottom: 6px;
-    display: flex; justify-content: space-between;
-  }
-  .history-item .hi-text {
-    font-size: 0.9rem;
-    color: var(--ink);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .history-item .hi-badge {
-    display: inline-block;
-    font-size: 0.68rem;
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-weight: 700;
-  }
-  .hi-badge.ko { background: #e0edff; color: var(--blue-dark); }
-  .hi-badge.en { background: #e0ffe8; color: var(--green-dark); }
-
-  /* 히스토리 헤더 */
-  .history-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 12px;
-  }
-  .clear-btn {
-    font-size: 0.75rem;
-    color: var(--coral);
-    background: none; border: none;
-    cursor: pointer; font-weight: 700;
-    font-family: 'Noto Sans KR', sans-serif;
-  }
-
-  /* 도움말 배지 */
-  .tip-badge {
-    background: linear-gradient(135deg, #fff9e0, #fff3c0);
-    border: 1.5px solid var(--yellow-dark);
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 0.8rem;
-    color: #7a5c00;
-    line-height: 1.6;
-    display: flex; gap: 8px;
-  }
-  .tip-badge .tip-icon { font-size: 1.2rem; flex-shrink: 0; }
-
-  /* ─── 반응형 조정 ─── */
-  @media (max-width: 360px) {
-    .header h1 { font-size: 1.4rem; }
-    .tab-btn { font-size: 0.72rem; }
-  }
-</style>
+        /* 비디오 영역 가이드라인 애니메이션 */
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: rgba(34, 197, 94, 0.8); /* green-500 */
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
+            animation: scan 2s infinite linear;
+            display: none;
+        }
+        .is-scanning .scan-line {
+            display: block;
+        }
+    </style>
 </head>
-<body>
+<body class="h-screen w-screen overflow-hidden flex justify-center bg-gray-900">
 
-<div class="app-wrap">
-  <!-- 헤더 -->
-  <div class="header">
-    <span class="header-icon">🔍</span>
-    <h1>책 읽어주는 돋보기</h1>
-    <p>카메라로 비추면 글자를 읽어드려요</p>
-  </div>
+    <!-- 모바일 화면에 맞춘 메인 컨테이너 -->
+    <div class="w-full max-w-md h-full bg-yellow-50 flex flex-col relative shadow-2xl">
+        
+        <!-- 상단 헤더 -->
+        <header class="bg-yellow-400 text-yellow-900 p-4 flex items-center justify-between shadow-md z-10">
+            <h1 class="text-2xl title-font flex items-center gap-2">
+                <i class="fa-solid fa-magnifying-glass"></i> 읽어주는 돋보기
+            </h1>
+            <button id="settingsBtn" class="p-2 rounded-full hover:bg-yellow-500 transition">
+                <i class="fa-solid fa-gear text-xl"></i>
+            </button>
+        </header>
 
-  <!-- 탭 -->
-  <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('camera')">
-      <span class="tab-icon">📷</span> 카메라
-    </button>
-    <button class="tab-btn" onclick="switchTab('upload')">
-      <span class="tab-icon">🖼️</span> 사진
-    </button>
-    <button class="tab-btn" onclick="switchTab('history')">
-      <span class="tab-icon">📚</span> 기록
-    </button>
-  </div>
+        <!-- 카메라 뷰포트 영역 -->
+        <div class="relative w-full flex-grow bg-black overflow-hidden flex items-center justify-center">
+            <video id="cameraStream" class="min-w-full min-h-full object-cover" autoplay playsinline></video>
+            
+            <!-- 캡처 효과용 캔버스 (숨김) -->
+            <canvas id="captureCanvas" class="hidden"></canvas>
+            
+            <!-- 스캔 애니메이션 라인 -->
+            <div class="scan-line z-20"></div>
 
-  <!-- ══════════ 카메라 탭 ══════════ -->
-  <div class="section active" id="sec-camera">
-
-    <!-- 언어 선택 -->
-    <div class="card">
-      <div class="card-title">🌏 인식 언어</div>
-      <div class="lang-select-row">
-        <button class="lang-chip active" id="chip-ko" onclick="selectLang('kor')">🇰🇷 한국어</button>
-        <button class="lang-chip" id="chip-en" onclick="selectLang('eng')">🇺🇸 영어</button>
-        <button class="lang-chip" id="chip-both" onclick="selectLang('kor+eng')">🌐 둘 다</button>
-      </div>
-    </div>
-
-    <!-- 카메라 뷰 -->
-    <div class="card">
-      <div class="card-title">📷 카메라</div>
-      <div class="camera-container" id="cameraContainer">
-        <video id="video" autoplay playsinline></video>
-        <div class="camera-placeholder" id="camPlaceholder">
-          <span>📷</span>
-          <p>카메라 시작 버튼을 눌러주세요</p>
+            <!-- 타겟팅 가이드 박스 -->
+            <div class="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+                <div class="w-full h-48 border-4 border-yellow-400/50 rounded-2xl relative">
+                    <div class="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-yellow-400 rounded-tl-lg"></div>
+                    <div class="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-yellow-400 rounded-tr-lg"></div>
+                    <div class="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-yellow-400 rounded-bl-lg"></div>
+                    <div class="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-yellow-400 rounded-br-lg"></div>
+                </div>
+            </div>
+            
+            <!-- 로딩 오버레이 -->
+            <div id="loadingOverlay" class="absolute inset-0 bg-black/70 z-30 flex flex-col items-center justify-center hidden">
+                <i class="fa-solid fa-spinner fa-spin text-5xl text-yellow-400 mb-4"></i>
+                <p id="loadingText" class="text-white text-lg font-bold title-font">글자를 읽는 중이에요...</p>
+                <div class="w-2/3 bg-gray-700 rounded-full h-2.5 mt-4">
+                    <div id="progressBar" class="bg-yellow-400 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
         </div>
-        <div class="scan-line" id="scanLine"></div>
-        <div class="corner-markers">
-          <div class="corner-bl"></div>
-          <div class="corner-br"></div>
+
+        <!-- 하단 컨트롤 & 결과 영역 -->
+        <div class="bg-white rounded-t-3xl -mt-6 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.1)] flex flex-col h-2/5 p-5">
+            
+            <!-- 모드 선택 -->
+            <div class="flex justify-between items-center mb-4">
+                <select id="readMode" class="bg-yellow-100 text-yellow-800 font-bold py-2 px-3 rounded-xl border border-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 w-full">
+                    <option value="kor">🇰🇷 한글 동화책 읽기</option>
+                    <option value="eng">🇺🇸 영어 문장 읽기</option>
+                    <option value="eng-to-kor">🔄 영어를 한글로 번역해서 읽기</option>
+                </select>
+            </div>
+
+            <!-- 인식된 텍스트 표시 영역 -->
+            <div class="flex-grow overflow-y-auto bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                <p id="resultText" class="text-gray-500 text-center italic mt-4">
+                    카메라로 책을 비추고<br>아래 버튼을 눌러주세요!
+                </p>
+            </div>
+
+            <!-- 조작 버튼 -->
+            <div class="flex gap-3 justify-center">
+                <button id="stopBtn" class="hidden bg-red-100 text-red-600 font-bold py-3 px-4 rounded-2xl flex-1 flex justify-center items-center gap-2 active:bg-red-200 transition">
+                    <i class="fa-solid fa-stop"></i> 멈추기
+                </button>
+                <button id="captureBtn" class="bg-yellow-400 text-yellow-900 font-bold py-4 px-6 rounded-2xl w-full text-lg shadow-[0_4px_0_#ca8a04] active:shadow-none active:translate-y-1 transition flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-camera"></i> 사진 찍고 읽기
+                </button>
+            </div>
         </div>
-        <canvas id="canvas"></canvas>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="startCamBtn" onclick="startCamera()">
-          <span class="btn-icon">▶️</span> 카메라 시작
-        </button>
-        <button class="btn btn-yellow" id="captureBtn" onclick="captureAndOCR()" disabled>
-          <span class="btn-icon">📸</span> 촬영·인식
-        </button>
-      </div>
     </div>
 
-    <!-- OCR 결과 -->
-    <div class="card" id="resultCard">
-      <div class="card-title">📝 인식된 글자</div>
-      <div id="statusBar" class="status-bar idle">
-        <div class="spinner"></div>
-        <span id="statusMsg">대기 중...</span>
-      </div>
-      <div class="result-box" id="resultBox">
-        <div class="result-placeholder">여기에 인식된 글자가 나타나요</div>
-      </div>
-      <div id="translateBox" class="translate-box">
-        <div class="translate-label">🌏 한국어 번역</div>
-        <div id="translateText"></div>
-      </div>
-      <div class="play-bar" id="playBar">
-        <div class="play-progress" id="playProgress"></div>
-      </div>
-      <div class="btn-row" style="margin-top:12px;">
-        <button class="btn btn-green" id="speakBtn" onclick="speakText()" disabled>
-          <span class="btn-icon">🔊</span> 읽어주기
-        </button>
-        <button class="btn btn-coral" id="stopBtn" onclick="stopSpeech()" disabled>
-          <span class="btn-icon">⏹️</span> 멈추기
-        </button>
-        <button class="btn btn-outline" onclick="copyText()">
-          <span class="btn-icon">📋</span>
-        </button>
-      </div>
-    </div>
+    <!-- 스크립트 로직 -->
+    <script>
+        const video = document.getElementById('cameraStream');
+        const canvas = document.getElementById('captureCanvas');
+        const captureBtn = document.getElementById('captureBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resultText = document.getElementById('resultText');
+        const readMode = document.getElementById('readMode');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const progressBar = document.getElementById('progressBar');
+        
+        let currentStream = null;
+        let isReading = false;
+        const synth = window.speechSynthesis;
 
-    <!-- TTS 설정 -->
-    <div class="card">
-      <div class="card-title">🎙️ 목소리 설정</div>
-      <select class="voice-select" id="voiceSelect" onchange="updateVoice()">
-        <option value="">기본 목소리</option>
-      </select>
-      <div class="tts-row" style="margin-top:12px;">
-        <span class="tts-label">🐢 속도</span>
-        <div class="range-wrap">
-          <input type="range" id="rateRange" min="0.5" max="1.8" step="0.1" value="0.9"
-                 oninput="document.getElementById('rateVal').textContent=this.value+'x'">
-        </div>
-        <span class="range-val" id="rateVal">0.9x</span>
-      </div>
-      <div class="tts-row" style="margin-top:8px;">
-        <span class="tts-label">🎵 음높이</span>
-        <div class="range-wrap">
-          <input type="range" id="pitchRange" min="0.5" max="1.8" step="0.1" value="1.1"
-                 oninput="document.getElementById('pitchVal').textContent=this.value">
-        </div>
-        <span class="range-val" id="pitchVal">1.1</span>
-      </div>
+        // 1. 카메라 초기화
+        async function initCamera() {
+            try {
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+                const constraints = {
+                    video: { 
+                        facingMode: "environment", // 후면 카메라 우선
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+            } catch (err) {
+                console.error("Camera access error:", err);
+                resultText.innerHTML = `<span class="text-red-500"><i class="fa-solid fa-triangle-exclamation"></i> 카메라 권한을 허용해주세요.</span>`;
+            }
+        }
 
-      <div class="tip-badge" style="margin-top:12px;">
-        <span class="tip-icon">💡</span>
-        <span>속도를 <strong>0.7~0.8x</strong>로 낮추면 아이들이 더 잘 따라 읽을 수 있어요!</span>
-      </div>
-    </div>
-  </div>
+        // 2. 음성 합성 (TTS) 설정 모바일 대응
+        // iOS 등에서 사용자 제스처 없이 음성이 안나오는 것을 방지하기 위한 트릭
+        function unlockAudio() {
+            const utterance = new SpeechSynthesisUtterance('');
+            synth.speak(utterance);
+        }
 
-  <!-- ══════════ 업로드 탭 ══════════ -->
-  <div class="section" id="sec-upload">
-    <div class="card">
-      <div class="card-title">🌏 인식 언어</div>
-      <div class="lang-select-row">
-        <button class="lang-chip active" id="uchip-ko" onclick="selectUploadLang('kor')">🇰🇷 한국어</button>
-        <button class="lang-chip" id="uchip-en" onclick="selectUploadLang('eng')">🇺🇸 영어</button>
-        <button class="lang-chip" id="uchip-both" onclick="selectUploadLang('kor+eng')">🌐 둘 다</button>
-      </div>
-    </div>
+        // 3. 텍스트 읽어주기 (TTS)
+        function speakText(text, langCode) {
+            if (synth.speaking) synth.cancel(); // 기존 음성 취소
 
-    <div class="card">
-      <div class="card-title">🖼️ 사진 업로드</div>
-      <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
-        <div class="upload-icon">📂</div>
-        <p>여기를 눌러 <strong>사진을 선택</strong>하세요<br>
-        교과서, 동화책, 학습지 사진 모두 가능해요</p>
-      </div>
-      <input type="file" id="fileInput" accept="image/*" onchange="handleFileUpload(event)">
-      <img id="previewImg" class="preview-img" alt="미리보기">
-      <div class="btn-row" style="margin-top:12px;">
-        <button class="btn btn-primary" id="uploadOcrBtn" onclick="runUploadOCR()" disabled>
-          <span class="btn-icon">🔍</span> 글자 인식하기
-        </button>
-      </div>
-    </div>
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = langCode; // 'ko-KR' 또는 'en-US'
+            utterance.rate = 0.9; // 아이들이 듣기 좋게 약간 느리게
+            utterance.pitch = 1.1; // 약간 높은 톤 (친근하게)
 
-    <div class="card" id="uploadResultCard">
-      <div class="card-title">📝 인식된 글자</div>
-      <div id="uStatusBar" class="status-bar idle">
-        <div class="spinner"></div>
-        <span id="uStatusMsg">대기 중...</span>
-      </div>
-      <div class="result-box" id="uploadResultBox">
-        <div class="result-placeholder">인식된 글자가 여기에 나타나요</div>
-      </div>
-      <div id="uTranslateBox" class="translate-box">
-        <div class="translate-label">🌏 한국어 번역</div>
-        <div id="uTranslateText"></div>
-      </div>
-      <div class="play-bar" id="uPlayBar">
-        <div class="play-progress" id="uPlayProgress"></div>
-      </div>
-      <div class="btn-row" style="margin-top:12px;">
-        <button class="btn btn-green" id="uSpeakBtn" onclick="speakUploadText()" disabled>
-          <span class="btn-icon">🔊</span> 읽어주기
-        </button>
-        <button class="btn btn-coral" onclick="stopSpeech()" id="uStopBtn" disabled>
-          <span class="btn-icon">⏹️</span> 멈추기
-        </button>
-        <button class="btn btn-outline" onclick="copyUploadText()">
-          <span class="btn-icon">📋</span>
-        </button>
-      </div>
-    </div>
-  </div>
+            utterance.onstart = () => {
+                isReading = true;
+                captureBtn.classList.add('hidden');
+                stopBtn.classList.remove('hidden');
+            };
 
-  <!-- ══════════ 기록 탭 ══════════ -->
-  <div class="section" id="sec-history">
-    <div class="card">
-      <div class="history-header">
-        <div class="card-title" style="margin-bottom:0">📚 인식 기록</div>
-        <button class="clear-btn" onclick="clearHistory()">전체 삭제</button>
-      </div>
-      <div id="historyList"></div>
-    </div>
-  </div>
+            utterance.onend = () => {
+                isReading = false;
+                captureBtn.classList.remove('hidden');
+                stopBtn.classList.add('hidden');
+            };
 
-</div><!-- /app-wrap -->
+            utterance.onerror = (e) => {
+                console.error('TTS Error:', e);
+                isReading = false;
+                captureBtn.classList.remove('hidden');
+                stopBtn.classList.add('hidden');
+            };
 
-<script>
-// ═══════════════════════════════════════════════════
-//  전역 상태
-// ═══════════════════════════════════════════════════
-let currentLang = 'kor';
-let uploadLang  = 'kor';
-let worker = null;
-let stream = null;
-let cameraActive = false;
-let currentText = '';
-let uploadText  = '';
-let selectedVoice = null;
-let voices = [];
-let history = JSON.parse(localStorage.getItem('ocrHistory') || '[]');
+            synth.speak(utterance);
+        }
 
-// ═══════════════════════════════════════════════════
-//  탭 전환
-// ═══════════════════════════════════════════════════
-function switchTab(name) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('sec-' + name).classList.add('active');
-  document.querySelectorAll('.tab-btn')[['camera','upload','history'].indexOf(name)].classList.add('active');
-  if (name === 'history') renderHistory();
-}
+        // 4. 영한 번역 (무료 공개 API 사용: MyMemory)
+        async function translateText(text) {
+            try {
+                const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ko`);
+                const data = await response.json();
+                if (data && data.responseData && data.responseData.translatedText) {
+                    return data.responseData.translatedText;
+                }
+                return "번역 서버에 연결하지 못했어요.";
+            } catch (error) {
+                console.error("Translation error:", error);
+                return "번역 중 오류가 발생했어요.";
+            }
+        }
 
-// ═══════════════════════════════════════════════════
-//  언어 선택
-// ═══════════════════════════════════════════════════
-function selectLang(lang) {
-  currentLang = lang;
-  ['ko','en','both'].forEach(k => document.getElementById('chip-'+k).classList.remove('active'));
-  const map = {kor:'ko', eng:'en', 'kor+eng':'both'};
-  document.getElementById('chip-'+map[lang]).classList.add('active');
-}
-function selectUploadLang(lang) {
-  uploadLang = lang;
-  ['ko','en','both'].forEach(k => document.getElementById('uchip-'+k).classList.remove('active'));
-  const map = {kor:'ko', eng:'en', 'kor+eng':'both'};
-  document.getElementById('uchip-'+map[lang]).classList.add('active');
-}
+        // 5. 메인 로직: 사진 촬영 -> OCR -> 번역(선택) -> TTS
+        captureBtn.addEventListener('click', async () => {
+            // 오디오 잠금 해제 (모바일 대응)
+            unlockAudio();
 
-// ═══════════════════════════════════════════════════
-//  Tesseract 워커 초기화
-// ═══════════════════════════════════════════════════
-async function getWorker(lang) {
-  if (worker) {
-    try { await worker.terminate(); } catch(e){}
-  }
-  worker = await Tesseract.createWorker(lang, 1, {
-    logger: m => {
-      if (m.status === 'recognizing text') {
-        const pct = Math.round(m.progress * 100);
-        setStatus('loading', `인식 중... ${pct}%`);
-      }
-    }
-  });
-  return worker;
-}
+            // 비디오 프레임을 캔버스에 그리기
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/png');
 
-// ═══════════════════════════════════════════════════
-//  카메라
-// ═══════════════════════════════════════════════════
-async function startCamera() {
-  try {
-    if (stream) { stream.getTracks().forEach(t => t.stop()); }
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-    });
-    const video = document.getElementById('video');
-    video.srcObject = stream;
-    video.style.display = 'block';
-    document.getElementById('camPlaceholder').style.display = 'none';
-    cameraActive = true;
-    document.getElementById('captureBtn').disabled = false;
-    document.getElementById('startCamBtn').textContent = '🔄 카메라 전환';
-    document.getElementById('startCamBtn').onclick = switchCamera;
-  } catch(e) {
-    alert('카메라를 사용할 수 없어요.\n브라우저의 카메라 권한을 허용해주세요. 📷\n\n(HTTPS 또는 localhost 환경이어야 합니다.)');
-  }
-}
+            // UI 상태 변경
+            document.querySelector('.relative').classList.add('is-scanning');
+            loadingOverlay.classList.remove('hidden');
+            resultText.innerHTML = `<span class="text-gray-400">글자를 분석하고 있어요...</span>`;
+            progressBar.style.width = '0%';
 
-async function switchCamera() {
-  if (!stream) return;
-  const currentFacing = stream.getVideoTracks()[0]?.getSettings()?.facingMode;
-  const newFacing = currentFacing === 'user' ? 'environment' : 'user';
-  stream.getTracks().forEach(t => t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: newFacing }
-  });
-  const video = document.getElementById('video');
-  video.srcObject = stream;
-}
+            const mode = readMode.value;
+            const tesseractLang = (mode === 'kor') ? 'kor' : 'eng';
+            
+            try {
+                // Tesseract OCR 실행
+                const { data: { text } } = await Tesseract.recognize(
+                    imageData,
+                    tesseractLang,
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                const progress = Math.round(m.progress * 100);
+                                progressBar.style.width = `${progress}%`;
+                                loadingText.innerText = `글자를 읽는 중이에요... ${progress}%`;
+                            } else {
+                                loadingText.innerText = `사전 준비 중이에요...`;
+                            }
+                        }
+                    }
+                );
 
-async function captureAndOCR() {
-  if (!cameraActive) return;
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  canvas.width  = video.videoWidth  || 1280;
-  canvas.height = video.videoHeight || 720;
-  canvas.getContext('2d').drawImage(video, 0, 0);
+                const cleanedText = text.replace(/\n/g, ' ').trim();
 
-  // 스캔 라인 애니메이션
-  document.getElementById('cameraContainer').classList.add('scanning');
-  await runOCR(canvas, 'camera');
-  document.getElementById('cameraContainer').classList.remove('scanning');
-}
+                if (!cleanedText) {
+                    resultText.innerHTML = `<span class="text-red-500 font-bold">글자를 찾지 못했어요. 조금 더 가까이 찍어볼까요?</span>`;
+                    return;
+                }
 
-// ═══════════════════════════════════════════════════
-//  파일 업로드 OCR
-// ═══════════════════════════════════════════════════
-let uploadImageData = null;
-function handleFileUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    uploadImageData = e.target.result;
-    const preview = document.getElementById('previewImg');
-    preview.src = uploadImageData;
-    preview.style.display = 'block';
-    document.getElementById('uploadOcrBtn').disabled = false;
-  };
-  reader.readAsDataURL(file);
-}
+                // 결과 처리
+                if (mode === 'eng-to-kor') {
+                    // 번역 모드
+                    loadingText.innerText = "우리말로 번역하고 있어요...";
+                    progressBar.style.width = "100%";
+                    const translatedText = await translateText(cleanedText);
+                    
+                    resultText.innerHTML = `
+                        <p class="text-xs text-gray-400 mb-2">${cleanedText}</p>
+                        <p class="text-xl font-bold text-gray-800 title-font leading-relaxed">${translatedText}</p>
+                    `;
+                    speakText(translatedText, 'ko-KR');
 
-async function runUploadOCR() {
-  if (!uploadImageData) return;
-  // canvas에 이미지 그리기
-  const img = new Image();
-  img.onload = async () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    canvas.getContext('2d').drawImage(img, 0, 0);
-    await runOCR(canvas, 'upload');
-  };
-  img.src = uploadImageData;
-}
+                } else if (mode === 'eng') {
+                    // 영어 읽기 모드
+                    resultText.innerHTML = `<p class="text-xl font-bold text-gray-800 title-font leading-relaxed">${cleanedText}</p>`;
+                    speakText(cleanedText, 'en-US');
+                } else {
+                    // 한국어 읽기 모드
+                    resultText.innerHTML = `<p class="text-xl font-bold text-gray-800 title-font leading-relaxed">${cleanedText}</p>`;
+                    speakText(cleanedText, 'ko-KR');
+                }
 
-// ═══════════════════════════════════════════════════
-//  공통 OCR 실행
-// ═══════════════════════════════════════════════════
-async function runOCR(canvas, source) {
-  const lang = source === 'camera' ? currentLang : uploadLang;
-  const prefix = source === 'camera' ? '' : 'u';
+            } catch (err) {
+                console.error(err);
+                resultText.innerHTML = `<span class="text-red-500 font-bold">오류가 발생했어요. 다시 시도해주세요.</span>`;
+            } finally {
+                // UI 상태 복구
+                document.querySelector('.relative').classList.remove('is-scanning');
+                loadingOverlay.classList.add('hidden');
+                loadingText.innerText = "글자를 읽는 중이에요...";
+            }
+        });
 
-  setStatus('loading', '글자를 인식하는 중이에요...', prefix);
-  setResultText('', prefix);
+        // 6. 읽기 멈춤 버튼
+        stopBtn.addEventListener('click', () => {
+            if (synth.speaking) {
+                synth.cancel();
+            }
+            isReading = false;
+            captureBtn.classList.remove('hidden');
+            stopBtn.classList.add('hidden');
+        });
 
-  try {
-    const w = await getWorker(lang);
-    const { data: { text } } = await w.recognize(canvas);
-    const cleaned = text.replace(/\f/g, '').replace(/\n{3,}/g, '\n\n').trim();
+        // 앱 시작 시 카메라 구동
+        window.addEventListener('load', initCamera);
 
-    if (!cleaned) {
-      setStatus('error', '글자를 찾지 못했어요. 더 가까이 비춰보세요! 📖', prefix);
-      return;
-    }
-
-    setStatus('success', '✓ 인식 완료!', prefix);
-    setResultText(cleaned, prefix);
-
-    // 영어 감지 → 번역 표시
-    const isEnglishDetected = /[a-zA-Z]/.test(cleaned) && lang !== 'kor';
-    if (isEnglishDetected) {
-      showTranslation(cleaned, prefix);
-    } else {
-      hideTranslation(prefix);
-    }
-
-    if (source === 'camera') currentText = cleaned;
-    else uploadText = cleaned;
-
-    enableSpeakBtn(prefix);
-    saveHistory(cleaned, lang);
-  } catch(e) {
-    setStatus('error', '오류가 발생했어요. 다시 시도해주세요.', prefix);
-    console.error(e);
-  }
-}
-
-// ═══════════════════════════════════════════════════
-//  번역 (MyMemory 무료 API)
-// ═══════════════════════════════════════════════════
-async function showTranslation(text, prefix) {
-  const box = document.getElementById(prefix + 'TranslateBox');
-  const content = document.getElementById(prefix + 'TranslateText');
-  box.classList.add('show');
-  content.textContent = '번역 중...';
-
-  try {
-    // 텍스트 길이 제한 (API 제한)
-    const truncated = text.slice(0, 500);
-    const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(truncated)}&langpair=en|ko`);
-    const data = await res.json();
-    const translated = data.responseData?.translatedText;
-    if (translated && translated !== truncated) {
-      content.textContent = translated;
-    } else {
-      content.textContent = '번역을 불러오지 못했어요.';
-    }
-  } catch(e) {
-    content.textContent = '(오프라인 환경에서는 번역이 지원되지 않아요)';
-  }
-}
-
-function hideTranslation(prefix) {
-  const box = document.getElementById(prefix + 'TranslateBox');
-  if (box) box.classList.remove('show');
-}
-
-// ═══════════════════════════════════════════════════
-//  UI 헬퍼
-// ═══════════════════════════════════════════════════
-function setStatus(type, msg, prefix='') {
-  const bar = document.getElementById(prefix + 'StatusBar');
-  const msgEl = document.getElementById(prefix + 'StatusMsg');
-  bar.className = 'status-bar ' + type;
-  msgEl.textContent = msg;
-}
-
-function setResultText(text, prefix='') {
-  const box = document.getElementById(prefix === '' ? 'resultBox' : 'uploadResultBox');
-  if (!text) {
-    box.innerHTML = '<div class="result-placeholder">여기에 인식된 글자가 나타나요</div>';
-    box.classList.remove('has-text');
-  } else {
-    box.innerHTML = `<textarea id="${prefix}resultTA" rows="5">${text}</textarea>`;
-    box.classList.add('has-text');
-    document.getElementById(prefix + 'resultTA').addEventListener('input', e => {
-      if (prefix === '') currentText = e.target.value;
-      else uploadText = e.target.value;
-    });
-  }
-}
-
-function enableSpeakBtn(prefix='') {
-  document.getElementById(prefix + 'SpeakBtn').disabled = false;
-}
-
-// ═══════════════════════════════════════════════════
-//  TTS (Web Speech API)
-// ═══════════════════════════════════════════════════
-function loadVoices() {
-  voices = window.speechSynthesis.getVoices();
-  const sel = document.getElementById('voiceSelect');
-  sel.innerHTML = '<option value="">기본 목소리</option>';
-  voices.forEach((v, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = `${v.name} (${v.lang})`;
-    sel.appendChild(opt);
-  });
-}
-
-window.speechSynthesis.onvoiceschanged = loadVoices;
-loadVoices();
-
-function updateVoice() {
-  const idx = document.getElementById('voiceSelect').value;
-  selectedVoice = idx !== '' ? voices[parseInt(idx)] : null;
-}
-
-function createUtterance(text) {
-  const utt = new SpeechSynthesisUtterance(text);
-  utt.rate  = parseFloat(document.getElementById('rateRange').value);
-  utt.pitch = parseFloat(document.getElementById('pitchRange').value);
-  if (selectedVoice) utt.voice = selectedVoice;
-  return utt;
-}
-
-function speakText()       { doSpeak(currentText, ''); }
-function speakUploadText() { doSpeak(uploadText, 'u'); }
-
-function doSpeak(text, prefix) {
-  if (!text) return;
-  stopSpeech();
-
-  const utt = createUtterance(text);
-  const playBar = document.getElementById(prefix + 'PlayBar');
-  const playProg = document.getElementById(prefix + 'PlayProgress');
-  const stopBtn = document.getElementById(prefix + 'StopBtn');
-
-  playBar.classList.add('active');
-  playProg.style.width = '0%';
-  stopBtn.disabled = false;
-
-  let startTime;
-  const duration = (text.length / (utt.rate * 4)) * 1000; // 대략적 재생 시간
-
-  utt.onstart = () => {
-    startTime = Date.now();
-    const tick = () => {
-      if (!window.speechSynthesis.speaking) return;
-      const pct = Math.min(100, ((Date.now() - startTime) / duration) * 100);
-      playProg.style.width = pct + '%';
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  };
-
-  utt.onend = () => {
-    playBar.classList.remove('active');
-    stopBtn.disabled = true;
-  };
-
-  window.speechSynthesis.speak(utt);
-}
-
-function stopSpeech() {
-  window.speechSynthesis.cancel();
-  ['', 'u'].forEach(p => {
-    const b = document.getElementById(p + 'PlayBar');
-    if (b) b.classList.remove('active');
-    const s = document.getElementById(p + 'StopBtn');
-    if (s) s.disabled = true;
-  });
-}
-
-// 복사
-function copyText()       { copyToClipboard(currentText); }
-function copyUploadText() { copyToClipboard(uploadText); }
-function copyToClipboard(text) {
-  if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
-    alert('📋 클립보드에 복사되었어요!');
-  }).catch(() => {
-    // fallback
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    alert('📋 복사되었어요!');
-  });
-}
-
-// ═══════════════════════════════════════════════════
-//  히스토리
-// ═══════════════════════════════════════════════════
-function saveHistory(text, lang) {
-  const item = {
-    text: text.slice(0, 200),
-    lang,
-    time: new Date().toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
-  };
-  history.unshift(item);
-  if (history.length > 30) history.pop();
-  localStorage.setItem('ocrHistory', JSON.stringify(history));
-}
-
-function renderHistory() {
-  const list = document.getElementById('historyList');
-  if (!history.length) {
-    list.innerHTML = `<div class="history-empty"><span>📖</span>아직 인식 기록이 없어요</div>`;
-    return;
-  }
-  list.innerHTML = history.map((item, i) => `
-    <div class="history-item" onclick="speakHistory(${i})">
-      <div class="hi-meta">
-        <span class="hi-badge ${item.lang.includes('eng') ? 'en' : 'ko'}">
-          ${item.lang === 'kor' ? '🇰🇷 한국어' : item.lang === 'eng' ? '🇺🇸 영어' : '🌐 한+영'}
-        </span>
-        <span>${item.time}</span>
-      </div>
-      <div class="hi-text">${item.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-    </div>
-  `).join('');
-}
-
-function speakHistory(i) {
-  const item = history[i];
-  if (!item) return;
-  stopSpeech();
-  const utt = createUtterance(item.text);
-  window.speechSynthesis.speak(utt);
-}
-
-function clearHistory() {
-  if (!confirm('기록을 모두 삭제할까요?')) return;
-  history = [];
-  localStorage.removeItem('ocrHistory');
-  renderHistory();
-}
-
-// ═══════════════════════════════════════════════════
-//  모바일 절전 방지 (화면 켜짐 유지 시도)
-// ═══════════════════════════════════════════════════
-let wakeLock = null;
-async function requestWakeLock() {
-  if ('wakeLock' in navigator) {
-    try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
-  }
-}
-requestWakeLock();
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') requestWakeLock();
-});
-</script>
+    </script>
 </body>
 </html>
